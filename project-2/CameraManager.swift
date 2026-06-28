@@ -7,10 +7,30 @@
 
 import AVFoundation
 import Combine
+import CoreML
+import Vision
 
 class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     let captureSession = AVCaptureSession()
+    private var visionRequest: VNCoreMLRequest?
+    
+    override init() {
+            super.init()
+
+            guard let model = try? best(configuration: MLModelConfiguration()),
+                  let vnModel = try? VNCoreMLModel(for: model.model) else {
+                fatalError("Failed to load model")
+            }
+
+            let request = VNCoreMLRequest(model: vnModel)
+            request.imageCropAndScaleOption = .scaleFill
+            self.visionRequest = request
+        }
+
+    
+    private nonisolated(unsafe) var frameCount = 0
+    private nonisolated let frameInterval = 30
     
     func configuration() {
         
@@ -25,6 +45,9 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
             
             guard let input = try? AVCaptureDeviceInput(device: camera) else { return } //? means make nil instead of crashing
             let output = AVCaptureVideoDataOutput()
+            output.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
             
             guard self.captureSession.canAddInput(input) else { return }
             self.captureSession.addInput(input)
@@ -43,11 +66,24 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
     
     //nonisolated means any thread can call. In newer swift, it is assumed that the function is tied to the main actor (CameraManager, which runs on main thread), but is being called on a backround thread.
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        print("frame received")
+        frameCount += 1
+        if (frameCount % frameInterval != 0) { return }
+        
+        frameCount = 0
+        
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard let request = visionRequest else { return }
+        
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
+        
+        do {
+            try handler.perform([request])
+            let results = request.results as? [VNRecognizedObjectObservation] ?? []
+            print(results)
+        } catch {
+            print("Inference error: \(error)")
+        }
     }
-
-    
-    
     
     
     
