@@ -21,7 +21,9 @@ struct ContentView: View {
                     .ignoresSafeArea()
                     .overlay {
                         Path { path in
-                            path.addRect(cameraManager.bb)
+                            for box in cameraManager.bb {
+                                path.addRect(box)
+                            }
                         }
                         .stroke(.red, lineWidth: 2)
                     }

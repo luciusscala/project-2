@@ -12,7 +12,7 @@ import Vision
 
 class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
-    @Published var bb: CGRect = .zero
+    @Published var bb: [CGRect] = [.zero]
 
     let captureSession = AVCaptureSession()
     private var visionRequest: VNCoreMLRequest?
@@ -28,6 +28,7 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
             let request = VNCoreMLRequest(model: vnModel)
             request.imageCropAndScaleOption = .scaleFill
             self.visionRequest = request
+        
         }
 
     
@@ -80,29 +81,17 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
         
       
         try? handler.perform([request])
-        let results = request.results as? [VNRecognizedObjectObservation] ?? []
-        print(results)
+        var results = request.results as? [VNRecognizedObjectObservation] ?? []
         
-        let ballDetections = results.filter { observation in
-            observation.labels.first?.identifier == "bottle"
+        results = results.filter{ obs in obs.confidence > 0.75 }
+        
+        let vsz = CGSize(width: 390, height: 763)
+        let imgsz = CGSize(width: 1080, height: 1920)
+        
+        let boxes = results.map { rect in
+            aspectFillDisplayRect(for: flipped(rect.boundingBox), imageSize: imgsz, viewSize: vsz)
         }
-        
-        print(ballDetections)
-        let imageSize = CGSize(width: 1920, height: 1080)
-        let viewSize = CGSize(width: 390, height: 763.0)
-        
-        
-        for detection in ballDetections {
-            let displayRect = aspectFillDisplayRect(
-                for: flipped(detection.boundingBox),
-                imageSize: imageSize,
-                viewSize: viewSize
-            )
-            Task { @MainActor in
-                self.bb = displayRect
-            }
-        }
-        
+        Task { @MainActor in self.bb = boxes }
         
     }
     
