@@ -12,13 +12,15 @@ import Vision
 
 class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
+    @Published var bb: CGRect = .zero
+
     let captureSession = AVCaptureSession()
     private var visionRequest: VNCoreMLRequest?
     
     override init() {
             super.init()
 
-            guard let model = try? best(configuration: MLModelConfiguration()),
+            guard let model = try? yolo26s(configuration: MLModelConfiguration()),
                   let vnModel = try? VNCoreMLModel(for: model.model) else {
                 fatalError("Failed to load model")
             }
@@ -76,17 +78,56 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
         
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
         
-        do {
-            try handler.perform([request])
-            let results = request.results as? [VNRecognizedObjectObservation] ?? []
-            print(results)
-        } catch {
-            print("Inference error: \(error)")
+      
+        try? handler.perform([request])
+        let results = request.results as? [VNRecognizedObjectObservation] ?? []
+        print(results)
+        
+        let ballDetections = results.filter { observation in
+            observation.labels.first?.identifier == "bottle"
         }
+        
+        print(ballDetections)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let viewSize = CGSize(width: 390, height: 763.0)
+        
+        
+        for detection in ballDetections {
+            let displayRect = aspectFillDisplayRect(
+                for: flipped(detection.boundingBox),
+                imageSize: imageSize,
+                viewSize: viewSize
+            )
+            Task { @MainActor in
+                self.bb = displayRect
+            }
+        }
+        
+        
     }
     
+    func aspectFillDisplayRect(for normalizedRect: CGRect, imageSize: CGSize, viewSize: CGSize)
+      -> CGRect
+    {
+      guard imageSize.width > 0, imageSize.height > 0, viewSize.width > 0, viewSize.height > 0 else {
+        return .zero
+      }
+      let scale = max(viewSize.width / imageSize.width, viewSize.height / imageSize.height)
+      let scaledImageSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+      let offset = CGPoint(
+        x: (scaledImageSize.width - viewSize.width) / 2,
+        y: (scaledImageSize.height - viewSize.height) / 2
+      )
+      return CGRect(
+        x: normalizedRect.minX * imageSize.width * scale - offset.x,
+        y: normalizedRect.minY * imageSize.height * scale - offset.y,
+        width: normalizedRect.width * imageSize.width * scale,
+        height: normalizedRect.height * imageSize.height * scale
+      )
+    }
     
-    
-    
+    func flipped(_ rect: CGRect) -> CGRect {
+        CGRect(x: rect.minX, y: 1 - rect.maxY, width: rect.width, height: rect.height)
+    }
     
 }
