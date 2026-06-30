@@ -13,14 +13,23 @@ struct ContentView: View {
     
     
     var body: some View {
-        ZStack {
-            Color.black
-            
-            CameraPreview(captureSession: cameraManager.captureSession)
-                .ignoresSafeArea()
-        }
-        .onAppear {
-            cameraManager.configuration()
+        GeometryReader{ geometry in
+            ZStack {
+                Color.black
+                
+                CameraPreview(captureSession: cameraManager.captureSession)
+                    .ignoresSafeArea()
+                    .overlay {
+                        Path { path in
+                            path.addRect(cameraManager.bb)
+                        }
+                        .stroke(.red, lineWidth: 2)
+                    }
+                    .onAppear {
+                        cameraManager.configuration()
+                        print("viewsize: \(geometry.size)")
+                    }
+            }
         }
     }
 }
