@@ -41,7 +41,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
 
     
     private nonisolated(unsafe) var frameCount = 0
-    private nonisolated let frameInterval = 30
+    private nonisolated let frameInterval = 10
     private let inferenceQueue = DispatchQueue(label: "com.project2.inference")
     
     func configuration() {
@@ -116,6 +116,18 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         var results = request.results as? [VNRecognizedObjectObservation] ?? []
         
         results = results.filter { obs in obs.confidence > 0.75 }
+        
+        // Check if any detected object is a "bottle" and print direction to center it
+        for obs in results {
+            if let topLabel = obs.labels.first, topLabel.identifier == "bottle" {
+                let centerX = obs.boundingBox.midX
+                if centerX < 0.5 {
+                    print("left")
+                } else {
+                    print("right")
+                }
+            }
+        }
         
         // Read actual pixel buffer dimensions (native landscape orientation)
         // and swap to portrait since we use orientation: .right
