@@ -8,14 +8,23 @@
 import AVFoundation
 import Combine
 import CoreML
+import UIKit
 import Vision
 
-class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
-    @Published var bb: [CGRect] = [.zero]
+    @Published var bb: [CGRect] = []
+    @Published var isRecording = false
 
     let captureSession = AVCaptureSession()
     private var visionRequest: VNCoreMLRequest?
+    let movieOutput = AVCaptureMovieFileOutput()
+    private var delegate: MovieCaptureDelegate?
+    
+    // The actual view size, set from GeometryReader before configuration
+    var viewSize = CGSize(width: 390, height: 844)
+    
+    private var isConfigured = false
     
     override init() {
             super.init()
@@ -26,45 +35,69 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
 
             let request = VNCoreMLRequest(model: vnModel)
-            request.imageCropAndScaleOption = .scaleFill
+            request.imageCropAndScaleOption = .scaleFit
             self.visionRequest = request
-        
         }
 
     
     private nonisolated(unsafe) var frameCount = 0
     private nonisolated let frameInterval = 30
+    private let inferenceQueue = DispatchQueue(label: "com.project2.inference")
     
     func configuration() {
+        guard !isConfigured else { return }
+        isConfigured = true
         
-        //DispatchQueue is object that lets us add tasks to main (main) and backround (global) threads. .async means do not block thread that called it.
-        //Need backround thread because we will be STARTING a capture sessino, not just initializng variables.
         DispatchQueue.global(qos: .userInitiated).async {
-            //this is closure since this code could possibly be exectued after this object is deallocated, therefre we must explicitely declare use of self
-            self.captureSession.beginConfiguration() //makes sure that we wait until all changes can be applied at once
+            self.captureSession.beginConfiguration()
             
-            //guard ensures that optional type camera is either set or not we just return
             guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else { return }
+            guard let videoInput = try? AVCaptureDeviceInput(device: camera) else { return }
             
-            guard let input = try? AVCaptureDeviceInput(device: camera) else { return } //? means make nil instead of crashing
             let output = AVCaptureVideoDataOutput()
             output.videoSettings = [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
             ]
             
-            guard self.captureSession.canAddInput(input) else { return }
-            self.captureSession.addInput(input)
+            guard self.captureSession.canAddInput(videoInput) else { return }
+            self.captureSession.addInput(videoInput)
+            
+            // Add microphone for audio in recordings
+            if let mic = AVCaptureDevice.default(for: .audio),
+               let audioInput = try? AVCaptureDeviceInput(device: mic),
+               self.captureSession.canAddInput(audioInput) {
+                self.captureSession.addInput(audioInput)
+            }
             
             guard self.captureSession.canAddOutput(output) else { return }
+            guard self.captureSession.canAddOutput(self.movieOutput) else { return }
             self.captureSession.addOutput(output)
+            self.captureSession.addOutput(self.movieOutput)
             
-            output.setSampleBufferDelegate(self, queue: DispatchQueue.global(qos: .userInitiated)) //set the delegate to be CameraManager and run on backround thread
+            output.setSampleBufferDelegate(self, queue: self.inferenceQueue)
             
             self.captureSession.commitConfiguration()
-            
             self.captureSession.startRunning()
-            
         }
+    }
+    
+    func startRecording() {
+        guard !movieOutput.isRecording else { return }
+        
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mov")
+        
+        delegate = MovieCaptureDelegate { [weak self] in
+            DispatchQueue.main.async { self?.isRecording = false }
+        }
+        movieOutput.startRecording(to: url, recordingDelegate: delegate!)
+        isRecording = true
+    }
+    
+    func stopRecording() {
+        guard movieOutput.isRecording else { return }
+        movieOutput.stopRecording()
     }
     
     //nonisolated means any thread can call. In newer swift, it is assumed that the function is tied to the main actor (CameraManager, which runs on main thread), but is being called on a backround thread.
@@ -79,14 +112,18 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
         
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
         
-      
         try? handler.perform([request])
         var results = request.results as? [VNRecognizedObjectObservation] ?? []
         
-        results = results.filter{ obs in obs.confidence > 0.75 }
+        results = results.filter { obs in obs.confidence > 0.75 }
         
-        let vsz = CGSize(width: 390, height: 763)
-        let imgsz = CGSize(width: 1080, height: 1920)
+        // Read actual pixel buffer dimensions (native landscape orientation)
+        // and swap to portrait since we use orientation: .right
+        let bufW = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
+        let bufH = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+        let imgsz = CGSize(width: bufH, height: bufW)
+        
+        let vsz = viewSize
         
         let boxes = results.map { rect in
             aspectFillDisplayRect(for: flipped(rect.boundingBox), imageSize: imgsz, viewSize: vsz)
@@ -119,4 +156,28 @@ class CameraManager: NSObject,ObservableObject, AVCaptureVideoDataOutputSampleBu
         CGRect(x: rect.minX, y: 1 - rect.maxY, width: rect.width, height: rect.height)
     }
     
+}
+
+// MARK: - Movie Capture Delegate
+
+class MovieCaptureDelegate: NSObject, AVCaptureFileOutputRecordingDelegate {
+    
+    private let onFinish: () -> Void
+    
+    init(onFinish: @escaping () -> Void) {
+        self.onFinish = onFinish
+    }
+    
+    nonisolated func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: (any Error)?) {
+        if let error {
+            print("Recording error: \(error.localizedDescription)")
+            onFinish()
+            return
+        }
+        
+        // Save to the photo library
+        UISaveVideoAtPathToSavedPhotosAlbum(outputFileURL.path, nil, nil, nil)
+        print("Video saved to photo library")
+        onFinish()
+    }
 }

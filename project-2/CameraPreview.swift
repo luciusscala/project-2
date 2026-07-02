@@ -34,6 +34,7 @@ struct CameraPreview: UIViewRepresentable {
         
         //connects the preview layer to the capture session
         view.videoPreviewLayer.session = captureSession
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
         
         return view
     }
