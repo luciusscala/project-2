@@ -11,42 +11,43 @@ import CoreML
 import UIKit
 import Vision
 
+/// Manages camera capture, YOLO object detection, and video recording.
 class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     @Published var bb: [CGRect] = []
     @Published var isRecording = false
 
     let captureSession = AVCaptureSession()
-    private var visionRequest: VNCoreMLRequest?
     let movieOutput = AVCaptureMovieFileOutput()
-    private var delegate: MovieCaptureDelegate?
-    
-    // Reference to the BluetoothManager so we can send motor commands.
-    // Not owned here — passed in from ContentView where both managers live.
     var bluetoothManager: BluetoothManager?
     
-    // The actual view size, set from GeometryReader before configuration
+    /// Set from GeometryReader before calling configuration().
     var viewSize = CGSize(width: 390, height: 844)
     
+    private var visionRequest: VNCoreMLRequest?
+    private var delegate: MovieCaptureDelegate?
     private var isConfigured = false
     
-    override init() {
-            super.init()
-
-            guard let model = try? best(configuration: MLModelConfiguration()),
-                  let vnModel = try? VNCoreMLModel(for: model.model) else {
-                fatalError("Failed to load model")
-            }
-
-            let request = VNCoreMLRequest(model: vnModel)
-            request.imageCropAndScaleOption = .scaleFit
-            self.visionRequest = request
-        }
-
-    
+    // nonisolated(unsafe) because this is mutated on the inference queue,
+    // not the main actor. Safe here since only captureOutput touches it.
     private nonisolated(unsafe) var frameCount = 0
     private nonisolated let frameInterval = 10
     private let inferenceQueue = DispatchQueue(label: "com.project2.inference")
+    
+    override init() {
+        super.init()
+
+        guard let model = try? best(configuration: MLModelConfiguration()),
+              let vnModel = try? VNCoreMLModel(for: model.model) else {
+            fatalError("Failed to load model")
+        }
+
+        let request = VNCoreMLRequest(model: vnModel)
+        request.imageCropAndScaleOption = .scaleFit
+        self.visionRequest = request
+    }
+    
+    // MARK: - Camera Setup
     
     func configuration() {
         guard !isConfigured else { return }
@@ -66,7 +67,6 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
             guard self.captureSession.canAddInput(videoInput) else { return }
             self.captureSession.addInput(videoInput)
             
-            // Add microphone for audio in recordings
             if let mic = AVCaptureDevice.default(for: .audio),
                let audioInput = try? AVCaptureDeviceInput(device: mic),
                self.captureSession.canAddInput(audioInput) {
@@ -84,6 +84,8 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
             self.captureSession.startRunning()
         }
     }
+    
+    // MARK: - Recording
     
     func startRecording() {
         guard !movieOutput.isRecording else { return }
@@ -104,7 +106,9 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         movieOutput.stopRecording()
     }
     
-    //nonisolated means any thread can call. In newer swift, it is assumed that the function is tied to the main actor (CameraManager, which runs on main thread), but is being called on a backround thread.
+    // MARK: - Frame Processing
+    
+    // nonisolated: this delegate method is called on the inference queue, not the main actor.
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         frameCount += 1
         if (frameCount % frameInterval != 0) { return }
@@ -121,20 +125,17 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         
         results = results.filter { obs in obs.confidence > 0.75 }
         
-        // Send motor command to keep the ball centered in frame.
-        // centerX is 0.0 (left edge) to 1.0 (right edge), so subtracting
-        // 0.5 gives us an offset: negative = ball is left, positive = right.
-        // The ESP32 uses this to know which way and how fast to rotate.
+        // Send motor offset to ESP32: negative = ball is left, positive = right.
+        // Multiplied by 2 to map the 0.0–0.5 half-range to a full -1.0 to +1.0.
         for obs in results {
             if let topLabel = obs.labels.first, topLabel.identifier == "ball" {
                 let centerX = obs.boundingBox.midX
-                let offset = Float(centerX - 0.5) * 2.0  // range: -1.0 to +1.0
+                let offset = Float(centerX - 0.5) * 2.0
                 bluetoothManager?.sendMotorCommand(offset: offset)
             }
         }
         
-        // Read actual pixel buffer dimensions (native landscape orientation)
-        // and swap to portrait since we use orientation: .right
+        // Swap width/height because the pixel buffer is landscape but we display portrait.
         let bufW = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
         let bufH = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
         let imgsz = CGSize(width: bufH, height: bufW)
@@ -145,9 +146,11 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
             aspectFillDisplayRect(for: flipped(rect.boundingBox), imageSize: imgsz, viewSize: vsz)
         }
         Task { @MainActor in self.bb = boxes }
-        
     }
     
+    // MARK: - Coordinate Mapping
+    
+    /// Converts a normalized Vision rect to display coordinates, accounting for aspect-fill scaling.
     func aspectFillDisplayRect(for normalizedRect: CGRect, imageSize: CGSize, viewSize: CGSize)
       -> CGRect
     {
@@ -168,6 +171,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
       )
     }
     
+    /// Flips a normalized rect's Y axis (Vision uses bottom-left origin, UIKit uses top-left).
     func flipped(_ rect: CGRect) -> CGRect {
         CGRect(x: rect.minX, y: 1 - rect.maxY, width: rect.width, height: rect.height)
     }
@@ -191,9 +195,7 @@ class MovieCaptureDelegate: NSObject, AVCaptureFileOutputRecordingDelegate {
             return
         }
         
-        // Save to the photo library
         UISaveVideoAtPathToSavedPhotosAlbum(outputFileURL.path, nil, nil, nil)
-        print("Video saved to photo library")
         onFinish()
     }
 }

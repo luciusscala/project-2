@@ -8,40 +8,28 @@
 import SwiftUI
 import AVFoundation
 
-
+/// Bridges AVCaptureVideoPreviewLayer into SwiftUI via UIViewRepresentable.
 struct CameraPreview: UIViewRepresentable {
     
-    //add the capture session type
     let captureSession: AVCaptureSession
 
     class PreviewView: UIView {
-        //must override the Core Animation layer because we want to be able to have a live preview of the frames.
+        // Override the backing layer to be a video preview layer instead of a plain CALayer.
         override class var layerClass: AnyClass {
             return AVCaptureVideoPreviewLayer.self
         }
-        //computable property which provides access to the avcapture.. layer (what is animated by swift)
+        
         var videoPreviewLayer: AVCaptureVideoPreviewLayer! {
-                        
             return (layer as! AVCaptureVideoPreviewLayer)
         }
     }
     
-    
     func makeUIView(context: Context) -> PreviewView {
-        
-        //creates the preview object with a blank frame
         let view = PreviewView(frame: CGRect.zero)
-        
-        //connects the preview layer to the capture session
         view.videoPreviewLayer.session = captureSession
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        
         return view
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
-    
-    }
-    
+    func updateUIView(_ uiView: UIViewType, context: Context) {}
 }
-
