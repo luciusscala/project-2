@@ -413,7 +413,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "project-2/Info.plist";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Camera required to record video";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app needs bluetooth to connect to the hardware";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access to capture video.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs microphone access to record audio with video.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app saves recorded videos to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -449,7 +452,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "project-2/Info.plist";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Camera required to record video";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app needs bluetooth to connect to the hardware";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access to capture video.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs microphone access to record audio with video.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app saves recorded videos to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

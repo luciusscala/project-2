@@ -21,6 +21,10 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
     let movieOutput = AVCaptureMovieFileOutput()
     private var delegate: MovieCaptureDelegate?
     
+    // Reference to the BluetoothManager so we can send motor commands.
+    // Not owned here — passed in from ContentView where both managers live.
+    var bluetoothManager: BluetoothManager?
+    
     // The actual view size, set from GeometryReader before configuration
     var viewSize = CGSize(width: 390, height: 844)
     
@@ -29,7 +33,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
     override init() {
             super.init()
 
-            guard let model = try? yolo26s(configuration: MLModelConfiguration()),
+            guard let model = try? best(configuration: MLModelConfiguration()),
                   let vnModel = try? VNCoreMLModel(for: model.model) else {
                 fatalError("Failed to load model")
             }
@@ -117,15 +121,15 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         
         results = results.filter { obs in obs.confidence > 0.75 }
         
-        // Check if any detected object is a "bottle" and print direction to center it
+        // Send motor command to keep the ball centered in frame.
+        // centerX is 0.0 (left edge) to 1.0 (right edge), so subtracting
+        // 0.5 gives us an offset: negative = ball is left, positive = right.
+        // The ESP32 uses this to know which way and how fast to rotate.
         for obs in results {
-            if let topLabel = obs.labels.first, topLabel.identifier == "bottle" {
+            if let topLabel = obs.labels.first, topLabel.identifier == "ball" {
                 let centerX = obs.boundingBox.midX
-                if centerX < 0.5 {
-                    print("left")
-                } else {
-                    print("right")
-                }
+                let offset = Float(centerX - 0.5) * 2.0  // range: -1.0 to +1.0
+                bluetoothManager?.sendMotorCommand(offset: offset)
             }
         }
         

@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     
     @StateObject var cameraManager = CameraManager()
+    @StateObject var bluetoothManager = BluetoothManager()
     
     
     var body: some View {
@@ -28,6 +29,7 @@ struct ContentView: View {
                     }
                     .onAppear {
                         cameraManager.viewSize = geometry.size
+                        cameraManager.bluetoothManager = bluetoothManager
                         cameraManager.configuration()
                     }
                 
