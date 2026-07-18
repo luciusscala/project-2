@@ -47,6 +47,12 @@ struct ContentView: View {
                     }
                     .padding(.bottom, 40)
                 }
+                
+                if bluetoothManager.isConnected {
+                    Text("Connected")
+                        .font(.title)
+                        .padding(.top, 100)
+                }
             }
         }
         .ignoresSafeArea()

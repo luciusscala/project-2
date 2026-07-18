@@ -31,13 +31,17 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
     // nonisolated(unsafe) because this is mutated on the inference queue,
     // not the main actor. Safe here since only captureOutput touches it.
     private nonisolated(unsafe) var frameCount = 0
-    private nonisolated let frameInterval = 10
+    private nonisolated let frameInterval = 3
+
+    // EMA of the tracking offset, mutated only on the inference queue.
+    // nil whenever no chair is being tracked.
+    private nonisolated(unsafe) var smoothedOffset: Float?
     private let inferenceQueue = DispatchQueue(label: "com.project2.inference")
     
     override init() {
         super.init()
 
-        guard let model = try? best(configuration: MLModelConfiguration()),
+        guard let model = try? yolo26s(configuration: MLModelConfiguration()),
               let vnModel = try? VNCoreMLModel(for: model.model) else {
             fatalError("Failed to load model")
         }
@@ -118,21 +122,32 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         guard let request = visionRequest else { return }
         
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
+        // .up because the phone is held landscape (charging port on the right) while
+        // recording, which matches the back camera's native sensor orientation.
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
         
         try? handler.perform([request])
-        var results = request.results as? [VNRecognizedObjectObservation] ?? []
-        
-        results = results.filter { obs in obs.confidence > 0.75 }
-        
-        // Send motor offset to ESP32: negative = ball is left, positive = right.
-        // Multiplied by 2 to map the 0.0–0.5 half-range to a full -1.0 to +1.0.
-        for obs in results {
-            if let topLabel = obs.labels.first, topLabel.identifier == "ball" {
-                let centerX = obs.boundingBox.midX
-                let offset = Float(centerX - 0.5) * 2.0
-                bluetoothManager?.sendMotorCommand(offset: offset)
-            }
+        let allResults = request.results as? [VNRecognizedObjectObservation] ?? []
+
+        let results = allResults.filter { obs in obs.confidence > 0.75 }
+
+        // Track the single best chair, with a lower confidence bar than drawing:
+        // the servo needs a steady stream of offsets more than confident ones.
+        // Offset: negative = chair is left, positive = right; ×2 maps the
+        // 0.0–0.5 half-range to a full -1.0 to +1.0.
+        let target = allResults
+            .filter { $0.labels.first?.identifier == "chair" && $0.confidence > 0.4 }
+            .max { $0.confidence < $1.confidence }
+
+        if let target {
+            let raw = Float(target.boundingBox.midX - 0.5) * 2.0
+            let smoothed = smoothedOffset.map { 0.7 * $0 + 0.3 * raw } ?? raw
+            smoothedOffset = smoothed
+            bluetoothManager?.sendMotorCommand(offset: smoothed)
+        } else {
+            // No chair in sight: stop commanding (the servo holds position) and
+            // reset the filter so a stale value doesn't bias reacquisition.
+            smoothedOffset = nil
         }
         
         // Swap width/height because the pixel buffer is landscape but we display portrait.
@@ -142,8 +157,13 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         
         let vsz = viewSize
         
-        let boxes = results.map { rect in
-            aspectFillDisplayRect(for: flipped(rect.boundingBox), imageSize: imgsz, viewSize: vsz)
+        let boxes = results.map { obs in
+            let r = obs.boundingBox
+            // Vision box is in the landscape (world-upright) buffer; the portrait
+            // preview shows that buffer rotated 90° CW. That rotation plus Vision's
+            // bottom-left origin reduce to swapping x/y and width/height.
+            let display = CGRect(x: r.minY, y: r.minX, width: r.height, height: r.width)
+            return aspectFillDisplayRect(for: display, imageSize: imgsz, viewSize: vsz)
         }
         Task { @MainActor in self.bb = boxes }
     }
@@ -170,12 +190,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         height: normalizedRect.height * imageSize.height * scale
       )
     }
-    
-    /// Flips a normalized rect's Y axis (Vision uses bottom-left origin, UIKit uses top-left).
-    func flipped(_ rect: CGRect) -> CGRect {
-        CGRect(x: rect.minX, y: 1 - rect.maxY, width: rect.width, height: rect.height)
-    }
-    
+
 }
 
 // MARK: - Movie Capture Delegate
