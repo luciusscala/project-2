@@ -60,7 +60,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         DispatchQueue.global(qos: .userInitiated).async {
             self.captureSession.beginConfiguration()
             
-            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else { return }
+            guard let camera = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back) else { return }
             guard let videoInput = try? AVCaptureDeviceInput(device: camera) else { return }
             
             let output = AVCaptureVideoDataOutput()
@@ -136,13 +136,14 @@ class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleB
         // Offset: negative = chair is left, positive = right; ×2 maps the
         // 0.0–0.5 half-range to a full -1.0 to +1.0.
         let target = allResults
-            .filter { $0.labels.first?.identifier == "chair" && $0.confidence > 0.4 }
+            .filter { $0.labels.first?.identifier == "person" && $0.confidence > 0.4 }
             .max { $0.confidence < $1.confidence }
 
         if let target {
             let raw = Float(target.boundingBox.midX - 0.5) * 2.0
             let smoothed = smoothedOffset.map { 0.7 * $0 + 0.3 * raw } ?? raw
             smoothedOffset = smoothed
+            print("sending")
             bluetoothManager?.sendMotorCommand(offset: smoothed)
         } else {
             // No chair in sight: stop commanding (the servo holds position) and
