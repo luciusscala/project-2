@@ -1,12 +1,17 @@
 
 import AVKit
+import SwiftData
 import SwiftUI
 
 struct VideoPlayerView: View {
     let record: VideoRecord
     let videoLibrary: VideoLibrary
 
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
     @State private var player: AVPlayer?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +37,30 @@ struct VideoPlayerView: View {
         }
         .navigationTitle(record.createdAt.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
+        }
+        .alert("Delete Video?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                player?.pause()
+                player = nil
+                do {
+                    try videoLibrary.delete(record: record, context: modelContext)
+                } catch {
+                    print("Failed to delete video: \(error)")
+                }
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This video will be permanently deleted.")
+        }
         .onAppear {
             let url = videoLibrary.videoURL(for: record)
             player = AVPlayer(url: url)

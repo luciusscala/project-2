@@ -74,27 +74,41 @@ final class VideoLibrary {
         return Self.thumbnailsDirectory.appendingPathComponent(jpgName)
     }
 
+    /// Deletes the video file, thumbnail, and SwiftData record for the given video.
+    func delete(record: VideoRecord, context: ModelContext) throws {
+        let videoFile = videoURL(for: record)
+        let thumbFile = thumbnailURL(for: record)
+
+        try? FileManager.default.removeItem(at: videoFile)
+        try? FileManager.default.removeItem(at: thumbFile)
+
+        context.delete(record)
+        try context.save()
+    }
+
     // MARK: - Private
 
     private func generateThumbnail(for videoURL: URL, id: UUID) {
-        let asset = AVAsset(url: videoURL)
+        let asset = AVURLAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 400, height: 400)
 
         let time = CMTime(seconds: 0.5, preferredTimescale: 600)
-        do {
-            let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
-            let thumbURL = Self.thumbnailsDirectory.appendingPathComponent("\(id.uuidString).jpg")
-            guard let jpgData = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.7) else {
-                print("Thumbnail: JPEG encoding failed")
-                return
+        Task {
+            do {
+                let (cgImage, _) = try await generator.image(at: time)
+                let thumbURL = Self.thumbnailsDirectory.appendingPathComponent("\(id.uuidString).jpg")
+                guard let jpgData = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.7) else {
+                    print("Thumbnail: JPEG encoding failed")
+                    return
+                }
+                try jpgData.write(to: thumbURL)
+                print("Thumbnail saved: \(thumbURL.lastPathComponent)")
+            } catch {
+                print("Thumbnail generation failed: \(error)")
+                print("  videoURL exists: \(FileManager.default.fileExists(atPath: videoURL.path()))")
             }
-            try jpgData.write(to: thumbURL)
-            print("Thumbnail saved: \(thumbURL.lastPathComponent)")
-        } catch {
-            print("Thumbnail generation failed: \(error)")
-            print("  videoURL exists: \(FileManager.default.fileExists(atPath: videoURL.path()))")
         }
     }
 }
