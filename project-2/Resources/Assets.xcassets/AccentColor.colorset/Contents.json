@@ -1,7 +1,10 @@
 {
   "colors" : [
     {
-      "filename" : "sllab_1024.png",
+      "color" : {
+        "platform" : "universal",
+        "reference" : "systemRedColor"
+      },
       "idiom" : "universal"
     }
   ],
