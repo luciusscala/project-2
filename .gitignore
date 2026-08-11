@@ -1,2 +1,5 @@
 ml
 *.mlpackage
+
+# Secrets (never commit)
+Secrets.swift

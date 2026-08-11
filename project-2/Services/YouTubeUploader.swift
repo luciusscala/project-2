@@ -6,11 +6,11 @@ import UIKit
 /// Videos are uploaded as unlisted via the YouTube Data API v3 resumable upload protocol.
 final class YouTubeUploader {
 
-    // MARK: - Credentials (replace with real values)
+    // MARK: - Credentials (loaded from gitignored Secrets.swift)
 
-    private let clientID = "REDACTED_CLIENT_ID"
-    private let clientSecret = "REDACTED_CLIENT_SECRET"
-    private let refreshToken = "REDACTED_REFRESH_TOKEN"
+    private let clientID = Secrets.youtubeClientID
+    private let clientSecret = Secrets.youtubeClientSecret
+    private let refreshToken = Secrets.youtubeRefreshToken
 
     // MARK: - Upload
 
