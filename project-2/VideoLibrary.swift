@@ -74,6 +74,15 @@ final class VideoLibrary {
         return Self.thumbnailsDirectory.appendingPathComponent(jpgName)
     }
 
+    /// Removes only the local .mov file, keeping the thumbnail and SwiftData record.
+    /// Use this after a video has been uploaded to YouTube.
+    func deleteLocalFile(record: VideoRecord, context: ModelContext) throws {
+        let videoFile = videoURL(for: record)
+        try? FileManager.default.removeItem(at: videoFile)
+        record.isLocalFileAvailable = false
+        try context.save()
+    }
+
     /// Deletes the video file, thumbnail, and SwiftData record for the given video.
     func delete(record: VideoRecord, context: ModelContext) throws {
         let videoFile = videoURL(for: record)

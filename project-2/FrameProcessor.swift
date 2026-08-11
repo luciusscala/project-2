@@ -41,7 +41,7 @@ final class FrameProcessor {
         try? handler.perform([request])
 
         let allResults = request.results as? [VNRecognizedObjectObservation] ?? []
-        let visible = allResults.filter { $0.confidence > 0.75 } // TODO: look at confidence again later, make sure not too high
+        let visible = allResults.filter { $0.confidence > 0.75 } // TODO: look at confidence again later, make sure not too high    
 
         updateTracking(from: allResults)
 

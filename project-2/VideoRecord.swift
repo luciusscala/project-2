@@ -9,6 +9,8 @@ final class VideoRecord {
     var duration: TimeInterval
     var fileName: String
     var youtubeURL: String?
+    var uploadStatus: String = "none"
+    var isLocalFileAvailable: Bool = true
 
     init(id: UUID = UUID(), createdAt: Date = .now, duration: TimeInterval, fileName: String) {
         self.id = id

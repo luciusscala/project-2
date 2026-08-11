@@ -52,7 +52,7 @@ private struct ThumbnailCell: View {
     var body: some View {
         let thumbURL = videoLibrary.thumbnailURL(for: record)
 
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
             Group {
                 if let uiImage = UIImage(contentsOfFile: thumbURL.path(percentEncoded: false)) {
                     Image(uiImage: uiImage)
@@ -68,15 +68,39 @@ private struct ThumbnailCell: View {
             }
             .frame(minHeight: 120)
             .clipped()
+            .opacity(record.isLocalFileAvailable ? 1 : 0.6)
 
-            Text(formattedDuration(record.duration))
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
-                .padding(4)
+            // Duration badge (bottom trailing)
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Text(formattedDuration(record.duration))
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
+                        .padding(4)
+                }
+            }
+
+            // Cloud badge (top trailing)
+            if record.uploadStatus == "uploaded" {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "checkmark.icloud.fill")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .background(.black.opacity(0.6), in: Circle())
+                            .padding(4)
+                    }
+                    Spacer()
+                }
+            }
         }
     }
 
