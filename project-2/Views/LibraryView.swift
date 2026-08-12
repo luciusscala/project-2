@@ -4,8 +4,6 @@ import SwiftUI
 
 struct LibraryView: View {
     @Query(sort: \VideoRecord.createdAt, order: .reverse) private var records: [VideoRecord]
-    @Environment(\.dismiss) private var dismiss
-
     let videoLibrary: VideoLibrary
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
@@ -29,16 +27,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .navigationTitle("Library")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(.primary)
-                    }
-                }
-            }
+            .navigationBarHidden(true)
         }
     }
 }

@@ -4,7 +4,6 @@ import SwiftUI
 struct CameraView: View {
     @ObservedObject var cameraManager: CameraManager
     @ObservedObject var bluetoothManager: BluetoothManager
-    var onOpenLibrary: () -> Void
 
     @State private var showDropdown = false
 
@@ -84,11 +83,7 @@ struct CameraView: View {
                         RecordButton(isRecording: cameraManager.isRecording)
                     }
                     .buttonStyle(.plain)
-
-                    // Mode selector
-                    ModeSelector(onOpenLibrary: onOpenLibrary)
-                    .padding(.top, 16)
-                    .padding(.bottom, 36)
+                    .padding(.bottom, 80)
                 }
             }
             .onAppear {
@@ -214,73 +209,6 @@ private struct OptionsDropdown: View {
         if bluetoothManager.isConnected { return "Connected" }
         if bluetoothManager.isScanning { return "Scanning" }
         return "Disconnected"
-    }
-}
-
-// MARK: - Mode Selector
-
-private enum Mode: Int, CaseIterable {
-    case camera, library
-}
-
-private struct ModeSelector: View {
-    var onOpenLibrary: () -> Void
-    @State private var selected: Mode = .camera
-    @Namespace private var ns
-
-    var body: some View {
-        HStack(spacing: 0) {
-            modeLabel("CAMERA", mode: .camera)
-            modeLabel("LIBRARY", mode: .library)
-        }
-        .glassEffect(.clear, in: .capsule)
-        .contentShape(.capsule)
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 12)
-                .onEnded { value in
-                    if value.translation.width < -12 {
-                        select(.library)
-                    } else if value.translation.width > 12 {
-                        select(.camera)
-                    }
-                }
-        )
-    }
-
-    private func modeLabel(_ title: String, mode: Mode) -> some View {
-        Button {
-            select(mode)
-        } label: {
-            Text(title)
-                .font(.caption)
-                .fontWeight(selected == mode ? .semibold : .medium)
-                .foregroundStyle(selected == mode ? Color.accentColor : .white.opacity(0.7))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background {
-                    if selected == mode {
-                        Capsule()
-                            .fill(.white.opacity(0.15))
-                            .matchedGeometryEffect(id: "selector", in: ns)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func select(_ mode: Mode) {
-        guard mode != selected else { return }
-        withAnimation(.snappy(duration: 0.25)) {
-            selected = mode
-        }
-        if mode == .library {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                onOpenLibrary()
-                withAnimation(.snappy(duration: 0.25)) {
-                    selected = .camera
-                }
-            }
-        }
     }
 }
 
