@@ -13,7 +13,6 @@ final class FrameProcessor {
     // TODO: do not recalculate viewsize, should be calculated in camera manager or here not both
     var viewSize = CGSize(width: 390, height: 844)
     weak var bluetoothManager: BluetoothManager?
-
     /// Called on the inference queue with updated bounding boxes after each processed frame.
     var onBoxesUpdated: (([CGRect]) -> Void)?
 

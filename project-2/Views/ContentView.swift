@@ -4,7 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var cameraManager: CameraManager
     @StateObject private var bluetoothManager = BluetoothManager()
-    @State private var selectedTab = 0
+    @State private var showLibrary = false
 
     private let videoLibrary: VideoLibrary
 
@@ -15,19 +15,18 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                CameraView(
-                    cameraManager: cameraManager,
-                    bluetoothManager: bluetoothManager
-                )
-                .tag(0)
+            CameraView(
+                cameraManager: cameraManager,
+                bluetoothManager: bluetoothManager
+            )
+            .allowsHitTesting(!showLibrary)
 
+            if showLibrary {
                 LibraryView(videoLibrary: videoLibrary)
-                    .tag(1)
+                    .transition(.move(edge: .trailing))
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
 
-            ModeSelector(selectedTab: $selectedTab)
+            ModeSelector(showLibrary: $showLibrary)
                 .padding(.bottom, 36)
         }
         .ignoresSafeArea()
@@ -37,44 +36,48 @@ struct ContentView: View {
 // MARK: - Mode Selector
 
 private struct ModeSelector: View {
-    @Binding var selectedTab: Int
+    @Binding var showLibrary: Bool
     @Namespace private var ns
 
     var body: some View {
         HStack(spacing: 0) {
-            modeLabel("CAMERA", tab: 0)
-            modeLabel("LIBRARY", tab: 1)
+            modeButton("CAMERA", isSelected: !showLibrary) {
+                showLibrary = false
+            }
+            modeButton("LIBRARY", isSelected: showLibrary) {
+                showLibrary = true
+            }
         }
         .glassEffect(.clear, in: .capsule)
         .contentShape(.capsule)
         .highPriorityGesture(
             DragGesture(minimumDistance: 12)
                 .onEnded { value in
-                    withAnimation(.snappy(duration: 0.25)) {
+                    withAnimation(.snappy(duration: 0.3)) {
                         if value.translation.width < -12 {
-                            selectedTab = 1
+                            showLibrary = true
                         } else if value.translation.width > 12 {
-                            selectedTab = 0
+                            showLibrary = false
                         }
                     }
                 }
         )
     }
 
-    private func modeLabel(_ title: String, tab: Int) -> some View {
+    private func modeButton(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button {
-            withAnimation(.snappy(duration: 0.25)) {
-                selectedTab = tab
+            withAnimation(.snappy(duration: 0.3)) {
+                action()
             }
         } label: {
             Text(title)
                 .font(.caption)
-                .fontWeight(selectedTab == tab ? .semibold : .medium)
-                .foregroundStyle(selectedTab == tab ? Color.accentColor : .white.opacity(0.7))
+                .fontWeight(isSelected ? .semibold : .medium)
+                .foregroundStyle(isSelected ? Color.accentColor : .white.opacity(0.7))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background {
-                    if selectedTab == tab {
+                    if isSelected {
                         Capsule()
                             .fill(.white.opacity(0.15))
                             .matchedGeometryEffect(id: "selector", in: ns)
