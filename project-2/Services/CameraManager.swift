@@ -8,6 +8,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
 
     @Published var bb: [CGRect] = []
     @Published var isRecording = false
+    @Published var showBoundingBoxes = true
+    @Published var isPreviewEnabled = true
+    @Published var scheduledRecordingDate: Date? = nil
 
     let captureSession = AVCaptureSession()
     
@@ -30,6 +33,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private let videoLibrary: VideoLibrary
     private var captureDelegate: MovieCaptureDelegate?
     private var isConfigured = false
+    private var scheduledTimer: Timer?
 
     init(videoLibrary: VideoLibrary) {
         self.videoLibrary = videoLibrary
@@ -84,7 +88,27 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
 
     // MARK: - Recording
 
+    func scheduleRecording(at date: Date) {
+        scheduledTimer?.invalidate()
+        let interval = date.timeIntervalSinceNow
+        guard interval > 0 else { return }
+        scheduledRecordingDate = date
+        scheduledTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.scheduledRecordingDate = nil
+                self?.startRecording()
+            }
+        }
+    }
+
+    func cancelScheduledRecording() {
+        scheduledTimer?.invalidate()
+        scheduledTimer = nil
+        scheduledRecordingDate = nil
+    }
+
     func startRecording() {
+        cancelScheduledRecording()
         guard !movieOutput.isRecording else { return }
 
         let url = FileManager.default.temporaryDirectory
