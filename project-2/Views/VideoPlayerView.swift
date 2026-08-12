@@ -12,7 +12,6 @@ struct VideoPlayerView: View {
 
     @State private var player: AVPlayer?
     @State private var showDeleteConfirmation = false
-    @State private var showDeleteLocalConfirmation = false
     @State private var isUploading = false
     @State private var uploadStatus: String = ""
     @State private var uploadError: String?
@@ -21,16 +20,11 @@ struct VideoPlayerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if record.isLocalFileAvailable {
-                if let player {
-                    VideoPlayer(player: player)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    Color.black
-                }
+            if let player {
+                VideoPlayer(player: player)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // Local file deleted — show thumbnail with YouTube link
-                cloudOnlyView
+                Color.black
             }
 
             bottomBar
@@ -58,26 +52,10 @@ struct VideoPlayerView: View {
         } message: {
             Text("This will permanently delete the video and all its data.")
         }
-        .alert("Delete Local Copy?", isPresented: $showDeleteLocalConfirmation) {
-            Button("Delete Local", role: .destructive) {
-                player?.pause()
-                player = nil
-                do {
-                    try videoLibrary.deleteLocalFile(record: record, context: modelContext)
-                } catch {
-                    print("Failed to delete local file: \(error)")
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("The video file will be removed from this device. You can still watch it on YouTube.")
-        }
         .onAppear {
-            if record.isLocalFileAvailable {
-                let url = videoLibrary.videoURL(for: record)
-                player = AVPlayer(url: url)
-                player?.play()
-            }
+            let url = videoLibrary.videoURL(for: record)
+            player = AVPlayer(url: url)
+            player?.play()
         }
         .onDisappear {
             player?.pause()
@@ -86,34 +64,6 @@ struct VideoPlayerView: View {
     }
 
     // MARK: - Subviews
-
-    private var cloudOnlyView: some View {
-        VStack(spacing: 16) {
-            let thumbURL = videoLibrary.thumbnailURL(for: record)
-            if let uiImage = UIImage(contentsOfFile: thumbURL.path(percentEncoded: false)) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-            } else {
-                Color.black
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            if let urlString = record.youtubeURL, let url = URL(string: urlString) {
-                Link(destination: url) {
-                    Label("Watch on YouTube", systemImage: "play.rectangle.fill")
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(.red, in: RoundedRectangle(cornerRadius: 12))
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal)
-            }
-        }
-    }
 
     private var bottomBar: some View {
         HStack {
@@ -125,12 +75,10 @@ struct VideoPlayerView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if let urlString = record.youtubeURL, record.isLocalFileAvailable {
-                if let url = URL(string: urlString) {
-                    Link(destination: url) {
-                        Label("YouTube", systemImage: "link")
-                            .font(.caption)
-                    }
+            if let urlString = record.youtubeURL, let url = URL(string: urlString) {
+                Link(destination: url) {
+                    Label("YouTube", systemImage: "link")
+                        .font(.caption)
                 }
             }
         }
@@ -163,9 +111,7 @@ struct VideoPlayerView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
-                // Upload button
-                if record.isLocalFileAvailable,
-                   record.uploadStatus == "none" || record.uploadStatus == "failed" {
+                if record.uploadStatus == "none" || record.uploadStatus == "failed" {
                     Button {
                         uploadVideo()
                     } label: {
@@ -173,20 +119,10 @@ struct VideoPlayerView: View {
                     }
                 }
 
-                // Delete local copy (only if uploaded and local file exists)
-                if record.uploadStatus == "uploaded", record.isLocalFileAvailable {
-                    Button(role: .destructive) {
-                        showDeleteLocalConfirmation = true
-                    } label: {
-                        Label("Delete Local Copy", systemImage: "internaldrive")
-                    }
-                }
-
-                // Full delete
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
-                    Label("Delete Everywhere", systemImage: "trash")
+                    Label("Delete", systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -197,7 +133,6 @@ struct VideoPlayerView: View {
     // MARK: - Actions
 
     private func uploadVideo() {
-        guard record.isLocalFileAvailable else { return }
         isUploading = true
         uploadError = nil
         uploadStatus = "Starting..."
