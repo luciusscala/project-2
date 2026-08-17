@@ -18,6 +18,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     @Published var isConnected = false
     @Published var isScanning = false
+    @Published var isMotorEnabled = true
     
     private var centralManager: CBCentralManager!
     
@@ -52,7 +53,8 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     /// Sends a motor direction command to the ESP32.
     /// - Parameter offset: Ball offset from center, -1.0 (left) to +1.0 (right).
     func sendMotorCommand(offset: Float) {
-        guard let peripheral = espPeripheral,
+        guard isMotorEnabled,
+              let peripheral = espPeripheral,
               let characteristic = motorCharacteristic else { return }
         
         let clamped = max(-1.0, min(1.0, offset))

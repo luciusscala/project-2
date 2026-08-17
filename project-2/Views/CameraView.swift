@@ -110,7 +110,7 @@ private struct OptionsDropdown: View {
         VStack(alignment: .leading, spacing: 14) {
             // Bounding Boxes
             Toggle(isOn: $cameraManager.showBoundingBoxes) {
-                Label("Bounding Boxes", systemImage: "rectangle.dashed")
+                Text("Bounding Boxes")
                     .font(.subheadline)
                     .foregroundStyle(.white)
             }
@@ -123,7 +123,17 @@ private struct OptionsDropdown: View {
                 get: { !cameraManager.isPreviewEnabled },
                 set: { cameraManager.isPreviewEnabled = !$0 }
             )) {
-                Label("Performance Mode", systemImage: "bolt.fill")
+                Text("Performance Mode")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+            }
+            .tint(.accentColor)
+
+            Divider().overlay(.white.opacity(0.15))
+
+            // Motor Control
+            Toggle(isOn: $bluetoothManager.isMotorEnabled) {
+                Text("Motor Movement")
                     .font(.subheadline)
                     .foregroundStyle(.white)
             }
@@ -133,7 +143,7 @@ private struct OptionsDropdown: View {
 
             // Schedule Recording
             VStack(alignment: .leading, spacing: 10) {
-                Label("Start Timer", systemImage: "timer")
+                Text("Start Timer")
                     .font(.subheadline)
                     .foregroundStyle(.white)
 
@@ -180,7 +190,7 @@ private struct OptionsDropdown: View {
 
             // Connection Status
             HStack {
-                Label("ESP32", systemImage: "antenna.radiowaves.left.and.right")
+                Text("Hardware")
                     .font(.subheadline)
                     .foregroundStyle(.white)
                 Spacer()
@@ -196,7 +206,7 @@ private struct OptionsDropdown: View {
         }
         .padding(14)
         .frame(width: 230)
-        .glassEffect(.clear, in: .rect(cornerRadius: 14))
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
     }
 
     private var statusColor: Color {

@@ -111,7 +111,7 @@ struct VideoPlayerView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
-                if record.uploadStatus == "none" || record.uploadStatus == "failed" {
+                if record.uploadStatus != "uploaded" && !isUploading {
                     Button {
                         uploadVideo()
                     } label: {
